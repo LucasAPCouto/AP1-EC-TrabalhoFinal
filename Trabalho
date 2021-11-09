@@ -1,0 +1,1221 @@
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <locale.h>
+#include <stdbool.h>
+
+#define QTD_CLIENTES 100
+#define QTD_CONTAS 200
+#define QTD_TRANSACOES 1000
+
+#define ARQ_CLIENTE "(Binário) Clientes.bin"
+#define ARQ_CONTAS "(Binário) Contas.bin"
+#define ARQ_TRANSACAO "(Binário) Transações.bin"
+
+// Informação para cadastro do cliente
+typedef long long int ll_int;
+typedef struct localizacao {
+    char pais[15];
+    char estado[15];
+    char cidade[15];
+    char bairro[15];
+    char rua[25];
+    int numero;
+    int cep;
+} LOC;
+typedef struct ficha {
+    int codigo;
+    char nome[50];
+    ll_int cpf_cnpj;
+    ll_int telefone;
+    LOC endereco;
+} FICHA;
+// Informação para o cadastro da conta
+typedef struct bancario {
+    FICHA titular;
+    int agencia;
+    int numero;
+    float saldo;
+    bool parada;
+} BANC;
+typedef struct tempo {
+    int dia;
+    int mes;
+    int ano;
+    int hora;
+    int min;
+    time_t tempo;
+} TEMPO;
+typedef struct registros {
+    BANC conta;
+    char tipo[10];
+    char descricao[100];
+    float valor;
+    TEMPO data;
+} REG;
+// Nomeação das funções a serem utilizadas
+void gerenciador_clientes ();
+    void cadastrar_cliente ();
+        int cadastrador (FICHA *cliente);
+    void listar_cliente();
+        void impresor (FICHA *imprimir);
+    void buscar_cliente();
+        int buscador (int codigo, ll_int cpf_cnpj);
+    void atualizar_cliente();
+        int sincroniza_ordem_alfabetica ();
+    void excluir_cliente();
+        void excluidor (int posisao);
+void gerenciador_contas();
+        int sincroniza_ordem_conta(BANC **pp_contas);
+        void sincroniza_arquivos();
+    void todas_contas();
+        void imprime_conta(BANC *imprimir);
+    void cadastrar_conta();
+        int cadastra_conta (BANC *conta);
+    void contas_cliente();
+        int *concatenar_contas(BANC *p_contas, ll_int identificador);
+    void saque_conta();
+        void registra_transacao(BANC *conta, float valor, bool d_auto, char tipo[]);
+    void deposito_conta();
+        int carrega_conta(BANC *conta);
+    void transferencia_conta();
+    void extrato_conta();
+        void imprime_transacao(REG *tran);
+        int busca_conta(int agencia, int numero);
+void limpa_tela ();
+
+int main (){
+    char comando = 0;
+    FILE *f_cliente;
+    FILE *f_conta;
+    FILE *f_transacao;
+
+    setlocale(LC_ALL, "Portuguese");
+    limpa_tela();
+
+    //Cria os arquivo de CLIENTE necessário para a execução correta do programa.
+    if ((f_cliente = fopen(ARQ_CLIENTE, "rb")) == NULL)
+        f_cliente = fopen (ARQ_CLIENTE, "w");
+    fclose (f_cliente);
+
+    //Cria os arquivo de CONTA necessário para a execução correta do programa.
+    if ((f_conta = fopen(ARQ_CONTAS, "rb")) == NULL)
+        f_conta = fopen (ARQ_CONTAS, "w");
+    fclose (f_conta);
+
+    //Cria os arquivo de TRANSAÇÃO necessário para a execução correta do programa.
+    if ((f_transacao = fopen(ARQ_TRANSACAO, "rb")) == NULL)
+        f_transacao = fopen (ARQ_TRANSACAO, "w");
+    fclose (f_transacao);
+
+    // Parte estética a ser lida
+    while ((comando != 'S') && (comando != 's')){
+        puts("=============== Bem vindo! =================\n");
+        puts("Digite um comando para prosseguir:");
+        puts("C - Gerenciar Clientes");
+        puts("T - Gerenciar Contas");
+        puts("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+
+        if (comando == 'C' || comando == 'c') gerenciador_clientes();
+        if (comando == 'T' || comando == 't') gerenciador_contas();
+    }
+
+    return 0;
+}
+// Função de gerenciamento dos clientes
+void gerenciador_clientes (){
+    char comando = 0;
+
+    // Parte estética a ser lida
+    while ((comando != 'S') && (comando != 's')){
+        puts("\n============= Gerenciar Clientes =============\n");
+        puts("Digite um comando para prosseguir:");
+        puts("C - Cadastrar um cliente");
+        puts("L - Listar todos os clientes cadastrados");
+        puts("B - Buscar cliente já cadastrado");
+        puts("A - Atualizar um cliente cadastrado");
+        puts("E - Excluir um cliente cadastrado");
+        puts("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+
+        if (comando == 'C' || comando == 'c') cadastrar_cliente ();
+        else if (comando == 'L' || comando == 'l') listar_cliente();
+        else if (comando == 'B' || comando == 'b') buscar_cliente();
+        else if (comando == 'A' || comando == 'a') atualizar_cliente();
+        else if (comando == 'E' || comando == 'e') excluir_cliente();
+    }
+
+    return;
+}
+//Função para cadastro dos clientes
+void cadastrar_cliente (){
+    char comando = 0;
+    FICHA cliente;
+    FILE *f_clientes;
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("============== Cadastrar Cliente ==============\n");
+
+        if ((cadastrador (&cliente)) == 1) {
+            puts("\n********CLIENTE JÁ ESTÁ CADASTRADO!********\n");
+        }
+        else{
+            f_clientes = fopen (ARQ_CLIENTE, "ab");
+            if (fwrite (&cliente, sizeof(FICHA), 1, f_clientes))
+                puts("\n*******CLIENTE CADASTRADO COM SUCESSO!*******\n");
+            fclose(f_clientes);
+            sincroniza_ordem_alfabetica();
+        }
+
+        puts("Digite um comando para prosseguir:");
+        puts ("C - Cadastrar novo cliente");
+        puts ("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+    }
+    return;
+}
+//Comando para cadastro do cliente, montando sua ficha cadastral
+int cadastrador (FICHA *cliente){
+
+    printf("Informe o nome do cliente:\t");
+    fgets (&cliente->nome, sizeof(cliente->nome), stdin);
+    setbuf(stdin, NULL);
+
+    printf("Informe o código do cliente:\t");
+    scanf ("%d", &cliente->codigo);
+    setbuf(stdin, NULL);
+
+    printf("Informe o CNPJ/CPF do cliente:\t");
+    scanf ("%lld", &cliente->cpf_cnpj);
+    setbuf(stdin, NULL);
+
+    //Verifica se já está cadastrado
+    if ((buscador (cliente->codigo, cliente->cpf_cnpj)) != 0) return 1;
+
+    printf("Informe o telefone do cliente:\t");
+    scanf ("%lld", &cliente->telefone);
+    setbuf(stdin, NULL);
+
+    printf("Informe o endereço do cliente:\n");
+    printf("CEP:\t");
+    scanf ("%d", &cliente->endereco.cep);
+    setbuf(stdin, NULL);
+
+    printf("País:\t");
+    fgets (&cliente->endereco.pais, sizeof(cliente->endereco.pais), stdin);
+    setbuf(stdin, NULL);
+
+    printf("Estado:\t");
+    fgets (&cliente->endereco.estado, sizeof(cliente->endereco.estado), stdin);
+    setbuf(stdin, NULL);
+
+    printf("Cidade:\t");
+    fgets (&cliente->endereco.cidade, sizeof(cliente->endereco.cidade), stdin);
+    setbuf(stdin, NULL);
+
+    printf("Bairro:\t");
+    fgets (&cliente->endereco.bairro, sizeof(cliente->endereco.bairro), stdin);
+    setbuf(stdin, NULL);
+
+    printf("Rua:\t");
+    fgets (&cliente->endereco.rua, sizeof(cliente->endereco.rua), stdin);
+    setbuf(stdin, NULL);
+
+    printf("Número:\t");
+    scanf ("%d", &cliente->endereco.numero);
+    setbuf(stdin, NULL);
+
+    return 0;
+}
+//função para mostrar o cliente já cadastrado
+void listar_cliente(){
+    FICHA cliente;
+    char comando=0;
+    int qtd = sincroniza_ordem_alfabetica();
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("============= Listagem de Clientes =============\n");
+
+        FILE *f_cliente = fopen (ARQ_CLIENTE, "rb");
+
+        if (qtd == 0) {
+            puts ("\n*******NENHUM CLIENTE CADASTRADO!*******\n");
+        }
+        else {
+           for (;qtd>0; --qtd){
+                fread (&cliente, sizeof(FICHA), 1, f_cliente);
+                impresor(&cliente);
+            }
+        }
+        puts ("Digite um comando para prosseguir:");
+        puts ("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+        fclose(f_cliente);
+    }
+
+    return;
+}
+//função de impressão da ficha cadastral do cliente
+void impresor (FICHA *imprimir){
+    printf ("Nome....: %s", imprimir->nome);
+    printf ("Código..: %d\n", imprimir->codigo);
+    printf ("CNPJ/CPF: %lld\n", imprimir->cpf_cnpj);
+    printf ("Telefone: %lld\n", imprimir->telefone);
+    printf ("Endereço:\n");
+    printf ("CEP.....: %d\n", imprimir->endereco.cep);
+    printf ("País....: %s", imprimir->endereco.pais);
+    printf ("Estado..: %s", imprimir->endereco.estado);
+    printf ("Cidade..: %s", imprimir->endereco.cidade);
+    printf ("Bairro..: %s", imprimir->endereco.bairro);
+    printf ("Rua.....: %s", imprimir->endereco.rua);
+    printf ("Numero..: %d\n\n", imprimir->endereco.numero);
+
+    return;
+}
+//Função para encontrar no sistema a a ficha do cliente já cadastrado
+void buscar_cliente(){
+    ll_int codigo_ou_cpf=0;
+    char comando = 0;
+    int posisao=0;
+    FICHA cliente;
+    FILE *f_cliente = fopen (ARQ_CLIENTE, "rb");
+
+    while (comando != 'S' && comando != 's'){
+        puts ("============== Buscar Cliente ==============\n");
+        puts ("Digite o código ou CNPJ/CPF do cliente: ");
+        scanf("%lld", &codigo_ou_cpf);
+        setbuf (stdin, NULL);
+
+        posisao = buscador(codigo_ou_cpf, codigo_ou_cpf);
+
+        if (posisao == 0){
+            puts ("\n******* CLIENTE NÃO CADASTRADO *******");
+        }
+        else {
+            fseek (f_cliente, (posisao-1)*(sizeof(FICHA)), SEEK_SET);
+            fread (&cliente, sizeof(FICHA), 1, f_cliente);
+            impresor (&cliente);
+        }
+
+        puts ("\nDigite um comando para prosseguir:");
+        if (posisao == 0)   //Caso o cliente buscado não esteja na lista.
+            puts ("C - Cadastrar o cliente não encontrado");
+        puts ("B - Buscar outro cliente");
+        puts ("S - Sair");
+
+        scanf("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+
+        if (comando == 'C' || comando == 'c') {
+            fclose(f_cliente);
+            cadastrar_cliente();
+            return;
+        }
+    }
+    fclose(f_cliente);
+    return;
+}
+int buscador (int codigo, ll_int cpf_cnpj){
+    FICHA temporaria;
+    FILE *arquivo = fopen (ARQ_CLIENTE, "rb");
+    int i=0;
+
+    while (!feof(arquivo)){
+        ++i;
+        fread (&temporaria, sizeof(FICHA), 1, arquivo);
+        if ((temporaria.codigo == codigo) || (temporaria.cpf_cnpj == cpf_cnpj)) {
+            fclose(arquivo);
+            return i;
+        }
+    }
+    fclose(arquivo);
+    return 0;
+}
+//Função para atualizar um cliente já cadastrado
+void atualizar_cliente(){
+    ll_int codigo_ou_cpf=0;
+    char comando = 0;
+    int posisao=0;
+    FICHA cliente;
+    FILE *f_cliente;
+
+    while (comando != 'S' && comando != 's'){
+        comando = 0;
+
+        puts ("============= Atualizar Cliente =============");
+        printf("\nDigite o código ou CPF/CNPJ do cliente: ");
+        scanf("%lld", &codigo_ou_cpf);
+        setbuf (stdin, NULL);
+
+        posisao = buscador(codigo_ou_cpf, codigo_ou_cpf);
+
+        if (posisao == 0){
+            puts ("\n****** CLIENTE NÃO CADASTRADO ******\n");
+        }
+        else {
+            excluidor (posisao);
+            if ((cadastrador (&cliente)) == 1) {
+                puts("\n********CLIENTE JÁ ESTÁ CADASTRADO!********\n");
+
+            } else {
+                f_cliente = fopen (ARQ_CLIENTE, "ab");
+
+                if (fwrite (&cliente, sizeof(FICHA), 1, f_cliente)){
+                    puts ("\n******* CLIENTE ATUALIZADO COM SUCESSO *******\n");
+                } else {
+                    puts("\n******CLIENTE NÃO FOI ATUALIZADO COM SUCESSO!******\n");
+                }
+
+                fclose (f_cliente);
+                sincroniza_ordem_alfabetica();
+            }
+        }
+
+        puts ("Digite um comando para prosseguir:");
+        if (posisao == 0)
+            puts ("C - Cadastrar o cliente não encontrado");
+        puts ("B - Atualizar outro cliente");
+        puts ("S - Sair");
+
+        scanf("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+
+        if (comando == 'C' || comando == 'c') {
+            cadastrar_cliente();
+            return;
+        }
+    }
+    return;
+}
+int sincroniza_ordem_alfabetica (){
+    int qtd_real=0, i=0, j=0;
+    FICHA temporario;
+    FICHA clientes[QTD_CLIENTES];
+    FILE *f_binario = fopen (ARQ_CLIENTE, "rb");
+    FILE *f_txt = fopen ("(Txt) Clientes Cadastrados.c", "w");
+
+    qtd_real = fread (&clientes, sizeof(FICHA), QTD_CLIENTES, f_binario);
+    if (qtd_real == 0) {
+        fclose (f_binario);
+        fclose (f_txt);
+        return 0;
+    }
+
+    for (i=0; i<qtd_real; ++i){
+        for (j=i; j<qtd_real; ++j){
+            if (strcmp (&clientes[i].nome, &clientes[j].nome) >= 0){
+                temporario = clientes[i];
+                clientes[i] = clientes[j];
+                clientes[j] = temporario;
+            }
+        }
+    }
+
+    //Ecrevendo no arquivo binário
+    fclose (f_binario);
+    f_binario = fopen (ARQ_CLIENTE, "wb");
+    fwrite (&clientes, sizeof(FICHA), qtd_real, f_binario);
+
+    //Escrevendo no arquivo texto
+    for (i=0; i<qtd_real; i++){
+        fprintf (f_txt, "Nome....: %s", clientes[i].nome);
+        fprintf (f_txt, "Código..: %d\n", clientes[i].codigo);
+        fprintf (f_txt, "CNPJ/CPF: %lld\n", clientes[i].cpf_cnpj);
+        fprintf (f_txt, "Telefone: %lld\n", clientes[i].telefone);
+        fprintf (f_txt, "Endereço:\n");
+        fprintf (f_txt, "CEP.....: %d\n", clientes[i].endereco.cep);
+        fprintf (f_txt, "País....: %s", clientes[i].endereco.pais);
+        fprintf (f_txt, "Estado..: %s", clientes[i].endereco.estado);
+        fprintf (f_txt, "Cidade..: %s", clientes[i].endereco.cidade);
+        fprintf (f_txt, "Bairro..: %s", clientes[i].endereco.bairro);
+        fprintf (f_txt, "Rua.....: %s", clientes[i].endereco.rua);
+        fprintf (f_txt, "Numero..: %d\n\n", clientes[i].endereco.numero);
+    }
+
+    fclose (f_binario);
+    fclose(f_txt);
+    return qtd_real;
+}
+// Função para excluir um cliente já cadastrado
+void excluir_cliente(){
+    long long int codigo_ou_cpf=0;
+    char comando = 0;
+    int posisao=0;
+    FICHA cliente;
+    FILE *f_cliente;
+
+    while (comando != 'S' && comando != 's'){
+        puts ("============== Excluir Cliente ==============\n");
+        printf("Digite o código ou CNPJ/CPF do cliente: ");
+        scanf ("%lld", &codigo_ou_cpf);
+        setbuf (stdin, NULL);
+
+        posisao = buscador(codigo_ou_cpf, codigo_ou_cpf);
+
+        if (posisao == 0){
+            puts ("\n******* CLIENTE NÃO CADASTRADO *******");
+        }
+        else {
+            f_cliente = fopen (ARQ_CLIENTE, "rb");
+            fseek (f_cliente, (posisao-1)*(sizeof(FICHA)), SEEK_SET);
+            fread (&cliente, sizeof(FICHA), 1, f_cliente);
+            fclose(f_cliente);
+
+            impresor (&cliente);
+
+            puts ("\nPor favor. Confirme exclusão do cadastro!");
+            puts ("E - Confirmar");
+            puts ("S - Cancelar");
+
+            scanf("%c", &comando);
+            setbuf(stdin, NULL);
+
+            if (comando == 'E' || comando == 'e') {
+                excluidor (posisao);
+                puts ("\n******* CLIENTE EXCLUÍDO COM SUCESSO *******");
+            }
+            if (comando == 'S' || comando == 's') puts ("\n******* CANCELADO *******");
+        }
+
+        puts ("\nDigite um comando para prosseguir:");
+        puts ("E - Excluir outro cliente");
+        puts ("S - Sair");
+
+        scanf("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+    }
+
+    return;
+}
+// Função que exclui a conta do cliente
+void excluidor (int posisao){
+    int qtd_real=0, i=0;
+    FICHA clientes[QTD_CLIENTES];
+    FILE *f_cliente = fopen (ARQ_CLIENTE, "rb");
+
+    qtd_real = fread(clientes, sizeof(FICHA), QTD_CLIENTES, f_cliente);
+    fclose (f_cliente);
+    f_cliente = fopen (ARQ_CLIENTE, "wb");
+
+    for (i=0; i<qtd_real; i++){
+        if (i != (posisao-1)){
+            fwrite(&clientes[i], sizeof(FICHA), 1, f_cliente);
+        }
+    }
+
+    fclose(f_cliente);
+    sincroniza_ordem_alfabetica();
+    return;
+}
+// Função para o gerenciamento das contas
+void gerenciador_contas(){
+    char comando = 0;
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("============== Gerenciar Contas ==============\n");
+        puts("Digite um comando para prosseguir:");
+        puts("R - Listagem de todas as contas cadastradas");
+        puts("C - Cadastrar uma conta para um cliente");
+        puts("L - Listar todas as contas de um cliente");
+        puts("W - Realizar um saque em uma conta");
+        puts("D - Realizar um depósito em uma conta");
+        puts("T - Realizar transferência entre contas");
+        puts("E - Exibir extrato de uma conta");
+        puts("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+
+        if (comando == 'R' || comando == 'r') todas_contas();
+        else if (comando == 'C' || comando == 'c') cadastrar_conta();
+        else if (comando == 'L' || comando == 'l') contas_cliente();
+        else if (comando == 'W' || comando == 'w') saque_conta();
+        else if (comando == 'D' || comando == 'd') deposito_conta();
+        else if (comando == 'T' || comando == 't') transferencia_conta();
+        else if (comando == 'E' || comando == 'e') extrato_conta();
+    }
+
+    return;
+}
+int crescente (const void *a, const void *b){
+        return strcmp (((BANC*)a)->titular.nome, ((BANC*)b)->titular.nome);
+}
+int sincroniza_ordem_conta(BANC **pp_contas){
+    int i=0, j=0;
+    int qtd_real_contas=0;
+    int qtd_real_clientes=0;
+    BANC contas[QTD_CONTAS];
+    FILE *f_contas = fopen (ARQ_CONTAS, "rb");
+
+    qtd_real_contas = fread (contas, sizeof(BANC), QTD_CONTAS, f_contas);
+    fclose(f_contas);
+
+    if (qtd_real_contas == 0) return 0;
+
+    //Irá ordenar em ordem crescente pelo CÓDIGO de todas as contas
+    qsort (contas, qtd_real_contas, sizeof(BANC), crescente);
+
+    //Irá obter as listas de contas de cada cliente
+    for (i=0; i<qtd_real_contas; ++i){
+        j = qtd_real_clientes;
+        qtd_real_clientes++;
+
+        //pp_contas[j] = (BANC*) malloc(sizeof(BANC));
+        pp_contas[j] = concatenar_contas (pp_contas[j], contas[i].titular.codigo);
+
+        //Irá pular as contas do mesmo cliente
+        for ( ; i<qtd_real_contas; ++i) {
+            if (contas[i].titular.codigo != contas[i+1].titular.codigo) break;
+        }
+    }
+
+    return qtd_real_clientes;
+}
+//Função para organizar a ordem dos arquivos
+void sincroniza_arquivos(){
+    int i=0, j=0;
+    int qtd=0;
+    FILE *f_binario;
+    FILE *f_txt;
+
+    BANC **pp_contas = (BANC**) malloc(QTD_CONTAS * sizeof(BANC*));
+    for (int i=0; i<QTD_CONTAS; ++i) pp_contas[i] = (BANC*) malloc(sizeof(BANC));
+
+    qtd = sincroniza_ordem_conta(pp_contas);
+
+    if (qtd == 0) {
+        for (i=0; i<QTD_CONTAS; ++i) free (pp_contas[i]);
+        free (pp_contas);
+        return;
+    }
+
+    //Escrevendo no arquivo binário
+    f_binario = fopen (ARQ_CONTAS, "wb");
+    for (i=0; i<qtd; ++i){
+        j=0;
+        do {
+            fwrite (&pp_contas[i][j], sizeof(BANC), 1, f_binario);
+        } while (pp_contas[i][j++].parada != true);
+    }
+    fclose (f_binario);
+
+    //Escrevendo no arquivo texto
+    f_txt = fopen ("(Txt) Contas Cadastradas.c", "w");
+    for (i=0; i<qtd; i++){
+        j=0;
+        fputs ("=============== CONTA-CLIENTE ===============\n", f_txt);
+        fputs ("Dados pessoais:\n", f_txt);
+        fprintf (f_txt, "Nome........: %s", pp_contas[i][j].titular.nome);
+        fprintf (f_txt, "Código......: %d\n", pp_contas[i][j].titular.codigo);
+        fprintf (f_txt, "CNPJ/CPF....: %lld\n", pp_contas[i][j].titular.cpf_cnpj);
+        fputs ("\nDados Bancarios:\n", f_txt);
+
+        do {
+            fprintf (f_txt, "\n>>>>Conta %d\n", j+1);
+            fprintf (f_txt, "Agência........: %d\n", pp_contas[i][j].agencia);
+            fprintf (f_txt, "Número da conta: %d\n", pp_contas[i][j].numero);
+            fprintf (f_txt, "Saldo da conta.: %.2f\n", pp_contas[i][j].saldo);
+        } while (pp_contas[i][j++].parada != true);
+        fputs ("\n", f_txt);
+    }
+    for (i=0; i<QTD_CONTAS; ++i) free (pp_contas[i]);
+    free (pp_contas);
+    fclose (f_txt);
+
+    return;
+}
+//Função para ver todas as contas
+void todas_contas(){
+    int qtd, i=0;
+    char comando=0;
+    BANC **pp_contas = (BANC**) malloc(QTD_CONTAS * sizeof(BANC*));
+    for (i=0; i<QTD_CONTAS; ++i) pp_contas[i] = (BANC*) malloc(sizeof(BANC));
+
+    qtd = sincroniza_ordem_conta(pp_contas);
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("============== Listagem de Todas as Contas ==============\n");
+
+        if (qtd == 0) puts ("\n******* NENHUMA CONTA CADASTRADA! *******\n");
+        else for (i=0; i<qtd; ++i) imprime_conta (pp_contas[i]);
+
+        puts ("Digite um comando para prosseguir:");
+        puts ("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+    }
+
+    for (i=0; i<QTD_CONTAS; ++i) free (pp_contas[i]);
+    free (pp_contas);
+    return;
+}
+// Função para fazer a impressão da conta
+void imprime_conta(BANC *imprimir){
+    int i=0;
+
+    puts ("Dados pessoais:");
+    printf ("Nome........: %s", imprimir->titular.nome);
+    printf ("Código......: %d\n", imprimir->titular.codigo);
+    printf ("CNPJ/CPF....: %lld\n", imprimir->titular.cpf_cnpj);
+    puts ("\nDados Bancarios:");
+
+    do {
+        printf ("\nConta %d\n", i+1);
+        printf ("Agência........: %d\n", imprimir[i].agencia);
+        printf ("Número da conta: %d\n", imprimir[i].numero);
+        printf ("Saldo da conta.: %.2f\n", imprimir[i].saldo);
+    } while (imprimir[i++].parada != true);
+
+    printf("\n");
+    return;
+}
+//Função para cadastro de uma conta
+void cadastrar_conta(){
+    int resultado = 0;
+    char comando = 0;
+    FILE *f_conta;
+    BANC conta;
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("=============== Cadastrar Conta ===============\n");
+
+        resultado = cadastra_conta (&conta);
+        switch (resultado){
+            case 0:
+            puts("\n******* NENHUM CLIENTE CADASTRADO COM ESSE CÓDIGO OU CNPJ/CPF! *******\n");
+            break;
+
+            case -1:
+            puts("\n******* CONTA JÁ EXISTENTE! *******\n");
+            break;
+
+            default:
+            f_conta = fopen (ARQ_CONTAS, "ab");
+            fwrite (&conta, sizeof(BANC), 1, f_conta);
+            fclose (f_conta);
+            puts ("\n******* CONTA CADASTRADA COM SUCESSO! *******\n");
+
+        }
+
+        puts("Digite um comando para prosseguir:");
+        puts ("C - Cadastrar uma nova conta");
+        puts ("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+    }
+            sincroniza_arquivos();
+
+    return;
+}
+int cadastra_conta (BANC *conta){
+    int posisao = 0;
+    ll_int codigo_cpf = 0;
+    FILE *f_cliente;
+
+    printf ("Digite o código ou CNPJ/CPF do cliente: ");
+    scanf ("%lld", &codigo_cpf);
+    setbuf (stdin, NULL);
+
+    posisao = buscador (codigo_cpf, codigo_cpf);
+
+    if (posisao == 0) return 0;
+
+    f_cliente = fopen (ARQ_CLIENTE, "rb");
+    fseek (f_cliente, (posisao-1)*sizeof(FICHA), SEEK_SET);
+    fread (&conta->titular, sizeof(FICHA), 1, f_cliente);
+    fclose(f_cliente);
+
+    printf("Informe a agência da conta:\t");
+    scanf ("%d", &conta->agencia);
+    setbuf(stdin, NULL);
+
+    printf("Informe o número da conta:\t");
+    scanf ("%d", &conta->numero);
+    setbuf(stdin, NULL);
+
+    conta->saldo = 0;
+
+    //Verifica se já está cadastrado
+    if ((busca_conta (conta->agencia, conta->numero)) != 0) return -1;
+    else return posisao;
+}
+//Função para encontrar as contas dos clientes
+void contas_cliente(){
+    char comando=0;
+    ll_int codigo_cpf=0;
+    BANC *p_conta = (BANC*) malloc(sizeof(BANC));
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("============== Listagem de Contas de Cliente ==============\n");
+        printf ("Digite o código ou CNPJ/CPF do cliente: ");
+        scanf ("%lld", &codigo_cpf);
+        setbuf (stdin, NULL);
+
+        p_conta = concatenar_contas (p_conta, codigo_cpf);
+        if (p_conta == NULL){
+            puts ("\n******* NENHUMA CONTA CADASTRADA! *******\n");
+        } else {
+            imprime_conta (p_conta);
+        }
+
+        puts ("Digite um comando para prosseguir:");
+        if (p_conta == NULL) puts ("C - Cadastrar conta");
+        puts ("L - Listar contas de outro cliente");
+        puts ("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+
+        if ((comando == 'C') || (comando =='c')){
+            cadastrar_conta ();
+            return;
+        }
+    }
+    free(p_conta);
+    return;
+}
+int *concatenar_contas(BANC *p_contas, ll_int identificador){
+    int i=0, j=0, contador=0;
+    int posisoes[QTD_CONTAS];
+    BANC temp;
+    FILE *f_conta = fopen (ARQ_CONTAS, "rb");
+
+    while (fread (&temp, sizeof(BANC), 1, f_conta)){
+        i++;
+        if ((temp.titular.codigo == identificador) || (temp.titular.cpf_cnpj == identificador)){
+            posisoes[contador] = i;
+            contador++;
+        }
+    }
+
+    if (contador == 0) {
+        fclose (f_conta);
+        free (p_contas);
+        return NULL;
+    }
+    BANC *p = (BANC*) realloc(p_contas, contador * sizeof(BANC));
+    if (p != NULL) p_contas = p;
+
+    //Recebe as contas
+    for (i=0; i<contador; ++i){
+        fseek (f_conta, (posisoes[i]-1)*sizeof(BANC), SEEK_SET);
+        fread (&p_contas[i], sizeof(BANC), 1, f_conta);
+    }
+
+    //Organiza as contas em ordem decrescente de saldo
+    for (i=0; i<contador; ++i){
+        for (j=i; j<contador; ++j){
+            if (p_contas[i].saldo > p_contas[j].saldo){
+                temp = p_contas[i];
+                p_contas[i] = p_contas[j];
+                p_contas[j] = temp;
+            }
+        }
+    }
+
+    //Cria a lista encadeada fazendo a ligação de tudo
+    for (i=0; i<(contador-1); i++){
+        p_contas[i].parada = false;
+    }
+    p_contas[i].parada = true;
+
+    fclose (f_conta);
+    return p_contas;
+}
+// Função para fazer o saque do dinheiro da conta
+void saque_conta(){
+    int posisao=0;
+    float saque=0;
+    char comando=0;
+    BANC conta;
+    FILE *f_conta;
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("================ Saque em Conta ================\n");
+
+        posisao = carrega_conta(&conta);
+
+        if (posisao != 0){
+            printf("Informe o valor que deseja sacar: ");
+            scanf ("%f", &saque);
+            setbuf(stdin, NULL);
+
+            if (saque <= conta.saldo){
+                conta.saldo -= saque;
+
+                f_conta = fopen (ARQ_CONTAS, "rb+");
+                fseek (f_conta, (posisao-1)*sizeof(BANC), SEEK_SET);
+                fwrite(&conta, sizeof(BANC), 1, f_conta);
+                fclose (f_conta);
+
+                sincroniza_arquivos ();
+
+                registra_transacao (&conta, -saque, false, "DÉBITO");
+                while (saque >= 100) {printf ("100; "); saque -= 100;}
+                while (saque >= 50)  {printf ("50; "); saque -= 50;}
+                while (saque >= 20)  {printf ("20; "); saque -= 20;}
+                while (saque >= 10)  {printf ("10; "); saque -= 10;}
+                while (saque >= 5)   {printf ("5; "); saque -= 5;}
+                while (saque >= 2)   {printf ("2; "); saque -= 2;}
+
+                puts ("\n\n******** TRANSAÇÃO REALIZADA COM SUCESSO! ********\n");
+            }
+            else {
+                puts ("\n******** SAQUE MAIOR DO QUE O SALDO! ********");
+                puts (  " ******** TENTE COM UM VALOR MENOR! ********\n");
+            }
+        }
+
+        puts("Digite um comando para prosseguir:");
+        if (posisao == 0) puts ("C - Cadastrar conta");
+        puts ("W - Realizar novo saque");
+        puts ("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+
+        if (comando == 'C' || comando == 'c'){
+            cadastrar_conta();
+            return;
+        }
+    }
+
+    return;
+}
+//Função que registra todas as informações referentes a transação efetuada
+void registra_transacao(BANC *conta, float valor, bool d_auto, char tipo[]){
+    REG transacao;
+    struct tm agora;
+    time_t agora_segundos;
+    FILE *f_binario = fopen (ARQ_TRANSACAO, "ab");
+    FILE *f_txt = fopen ("(Txt) Transações.c", "a");
+
+    //Registra na transação a data
+    time (&agora_segundos);
+    agora = *localtime (&agora_segundos);
+
+    transacao.data.dia = agora.tm_mday;
+    transacao.data.mes = agora.tm_mon + 1;
+    transacao.data.ano = agora.tm_year + 1900;
+
+    //Registra na transação a hora
+    transacao.data.hora = agora.tm_hour;
+    transacao.data.min  = agora.tm_min;
+
+    //Registra na transação o tempo total em segundos
+    transacao.data.tempo = agora_segundos;
+
+    //Registra na transação a descrição
+    switch (d_auto){
+        case false:
+            printf("Informe uma descrição para a operação\n");
+            fgets (transacao.descricao, sizeof(transacao.descricao), stdin);
+            break;
+
+        case true:
+            if (strcmp (tipo, "DÉBITO") == 0)
+                sprintf (transacao.descricao, "Transferência para conta: %d - %d\n", conta->agencia, conta->numero);
+            if (strcmp (tipo, "CRÉDITO") == 0)
+                sprintf (transacao.descricao, "Transferência de conta: %d - %d\n", conta->agencia, conta->numero);
+            break;
+    }
+
+    //Registra na transação a conta correspondente
+    transacao.conta = *conta;
+
+    //Registra na transação se é debito ou credito;
+    strcpy (transacao.tipo, tipo);
+
+    //Registra na transação o valor
+    transacao.valor = valor;
+
+    //Grava os dados no arquivo binário
+    fwrite (&transacao, sizeof(REG), 1, f_binario);
+    fclose (f_binario);
+
+    //Grava os dados no arquivo texto
+    fprintf (f_txt, "=============== TRANSAÇÃO ===============\n");
+    fprintf (f_txt, "Dados do Cliente:\n");
+    fprintf (f_txt, "Nome..: %s", transacao.conta.titular.nome);
+    fprintf (f_txt, "Código: %d\n", transacao.conta.titular.codigo);
+
+    fprintf (f_txt, "\nDados da Conta:\n");
+    fprintf (f_txt, "Agência........: %d\n", transacao.conta.agencia);
+    fprintf (f_txt, "Número da conta: %d\n", transacao.conta.numero);
+
+    fprintf (f_txt, "\nDados da Transação:\n");
+    fprintf (f_txt, "Data: %02d/%02d/%04d\n", transacao.data.dia, transacao.data.mes, transacao.data.ano);
+    fprintf (f_txt, "Hora: %02d:%02d\n", transacao.data.hora, transacao.data.min);
+    fprintf (f_txt, "Tipo.....: %s\n", transacao.tipo);
+    fprintf (f_txt, "Descrição: %s", transacao.descricao);
+    fprintf (f_txt, "Saldo anterior....: %.2f\n", transacao.conta.saldo + (-valor));
+    fprintf (f_txt, "Valor da Transação: %.2f\n", transacao.valor);
+    fprintf (f_txt, "Saldo atualizado..: %.2f\n\n\n", transacao.conta.saldo);
+
+    fclose(f_txt);
+    return;
+}
+// Função para fazer um depósito financeiro na conta
+void deposito_conta(){
+    int posisao=0;
+    float deposito=0;
+    char comando=0;
+    BANC conta;
+    FILE *f_conta;
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("================ Depósito em Conta ================\n");
+
+        posisao = carrega_conta(&conta);
+
+        if (posisao != 0){
+            printf("Informe o valor que deseja depositar: ");
+            scanf ("%f", &deposito);
+            setbuf(stdin, NULL);
+
+            conta.saldo += deposito;
+
+            f_conta = fopen (ARQ_CONTAS, "rb+");
+            fseek (f_conta, (posisao-1) * sizeof(BANC), SEEK_SET);
+            fwrite(&conta, sizeof(BANC), 1, f_conta);
+            fclose (f_conta);
+
+            sincroniza_arquivos ();
+            registra_transacao (&conta, deposito, false, "CRÉDITO");
+
+            puts ("\n\n******** TRANSAÇÃO REALIZADA COM SUCESSO! ********\n");
+        }
+
+        puts("Digite um comando para prosseguir:");
+        if (posisao == 0) puts ("C - Cadastrar conta");
+        puts ("D - Realizar novo depósito");
+        puts ("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+
+        if (comando == 'C' || comando == 'c'){
+            cadastrar_conta();
+            return;
+        }
+    }
+
+    return;
+}
+int carrega_conta(BANC *conta){
+    int agencia=0, numero=0;
+    int posisao=0;
+    FILE *f_conta;
+
+    printf("Digite a agência da conta: ");
+    scanf ("%d", &agencia);
+    printf("Digite o número da conta: ");
+    scanf ("%d", &numero);
+    setbuf(stdin, NULL);
+
+    posisao = busca_conta (agencia, numero);
+
+    if (posisao == 0){
+        puts ("\n******** CONTA NÃO CADASTRADA! ********\n");
+    } else {
+        f_conta = fopen (ARQ_CONTAS, "rb");
+        fseek (f_conta, (posisao-1) * sizeof(BANC), SEEK_SET);
+        fread (conta, sizeof(BANC), 1, f_conta);
+        fclose (f_conta);
+
+        conta->parada = true;
+        imprime_conta (conta);
+    }
+    return posisao;
+}
+//Função para fazer transferências entre duas contas
+void transferencia_conta(){
+    char comando=0;
+    float transf=0;
+    int posisao_origem=0, posisao_destino=0;
+    BANC conta_origem, conta_destino;
+    FILE *f_conta;
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("================ Tranferência Entre Contas ================\n");
+
+        puts ("******** CONTA DE ORIGEM (SAQUE) ********\n");
+        while ((posisao_origem = carrega_conta(&conta_origem)) == 0){
+            puts("Digite um comando para prosseguir:");
+            puts ("C - Cadastrar esse conta");
+            puts ("B - Buscar outra conta");
+            puts ("S - Sair");
+
+            scanf ("%c", &comando);
+            setbuf(stdin, NULL);
+            limpa_tela();
+
+            if ((comando == 'B') || (comando == 'b')) puts ("******** CONTA DE ORIGEM (SAQUE) ********\n");
+            if ((comando == 'C') || (comando == 'c')) {cadastrar_conta(); return;}
+            if ((comando == 'S') || (comando == 's')) return;
+        }
+
+        puts ("\n******* CONTA DE DESTINO (DEPÓSITO) *******\n");
+        while ((posisao_destino = carrega_conta(&conta_destino)) == 0){
+            puts("Digite um comando para prosseguir:");
+            puts ("C - Cadastrar esse conta");
+            puts ("B - Buscar outra conta");
+            puts ("S - Sair");
+
+            scanf ("%c", &comando);
+            setbuf(stdin, NULL);
+            limpa_tela();
+
+            if ((comando == 'B') || (comando == 'b')) puts ("******* CONTA DE DESTINO (DEPÓSITO) *******\n");
+            if ((comando == 'C') || (comando == 'c')) {cadastrar_conta(); return;}
+            if ((comando == 'S') || (comando == 's')) return;
+        }
+
+        printf("Informe o valor que deseja transferir: ");
+        scanf ("%f", &transf);
+        setbuf(stdin, NULL);
+
+        if (transf <= conta_origem.saldo){
+            conta_origem.saldo -= transf;
+            conta_destino.saldo += transf;
+
+            //Salvando dados da conta de origem
+            f_conta = fopen (ARQ_CONTAS, "rb+");
+            fseek (f_conta, (posisao_origem-1)*sizeof(BANC), SEEK_SET);
+            fwrite (&conta_origem, sizeof(BANC), 1, f_conta);
+
+            //Salvando dados da conta de destino
+            fseek (f_conta, (posisao_destino-1)*sizeof(BANC), SEEK_SET);
+            fwrite(&conta_destino, sizeof(BANC), 1, f_conta);
+            fclose(f_conta);
+
+            registra_transacao (&conta_origem, -transf, true, "DÉBITO");
+            registra_transacao (&conta_destino, transf, true, "CRÉDITO");
+
+            sincroniza_arquivos();
+            puts ("\n\n******** TRANSAÇÃO REALIZADA COM SUCESSO! ********\n");
+        }
+
+            puts("Digite um comando para prosseguir:");
+            puts ("T - Realizar nova transferência");
+            puts ("S - Sair");
+
+            scanf ("%c", &comando);
+            setbuf(stdin, NULL);
+            limpa_tela();
+        }
+    return;
+}
+//Funçãp para fazer o extrato da conta
+void extrato_conta(){
+    int periodo;
+    int qtd=0, i=0;
+    char comando=0;
+    time_t tempo_inicial;
+    BANC conta;
+    REG v_transacoes[QTD_TRANSACOES];
+
+    FILE *f_transacao = fopen (ARQ_TRANSACAO, "rb");
+    qtd = fread (v_transacoes, sizeof(REG), QTD_TRANSACOES, f_transacao);
+
+    while ((comando != 'S') && (comando != 's')){
+        puts("================ Extrato de Conta ================\n");
+
+        carrega_conta(&conta);
+
+        printf("\nInforme a quantidade de dias que deseja exibir o extrato: ");
+        scanf ("%u",&periodo);
+        setbuf(stdin, NULL);
+
+        time (&tempo_inicial);
+        tempo_inicial -= periodo * 86400;
+
+        for (i=(qtd-1); i>=0; --i){
+            if ((v_transacoes[i].conta.agencia == conta.agencia) && //Agencia tem que ser igual
+                (v_transacoes[i].conta.numero  == conta.numero ) && //Número de conta tem que ser igual
+                (tempo_inicial <= v_transacoes->data.tempo))    //Tem que está dentro do período
+            {
+                imprime_transacao(&v_transacoes[i]);
+            }
+        }
+
+        puts("\nDigite um comando para prosseguir:");
+        puts ("E - Realizar um novo extrato");
+        puts ("S - Sair");
+
+        scanf ("%c", &comando);
+        setbuf(stdin, NULL);
+        limpa_tela();
+    }
+    fclose(f_transacao);
+    return;
+}
+//Função para impressão da transação efetuada
+void imprime_transacao(REG *tran){
+
+    printf ("\n=============== TRANSAÇÃO ===============\n");
+    printf ("Dados do Cliente:\n");
+    printf ("Nome..: %s", tran->conta.titular.nome);
+    printf ("Código: %d\n", tran->conta.titular.codigo);
+
+    printf ("\nDados da Conta:\n");
+    printf ("Agência........: %d\n", tran->conta.agencia);
+    printf ("Número da conta: %d\n", tran->conta.numero);
+
+    printf ("\nDados da Transação:\n");
+    printf ("Data: %02d/%02d/%04d\n", tran->data.dia, tran->data.mes, tran->data.ano);
+    printf ("Hora: %02d:%02d\n", tran->data.hora, tran->data.min);
+    printf ("Tipo.....: %s\n", tran->tipo);
+    printf ("Descrição: %s", tran->descricao);
+    printf ("Saldo anterior....: %.2f\n", tran->conta.saldo + (-tran->valor));
+    printf ("Valor da Transação: %.2f\n", tran->valor);
+    printf ("Saldo atualizado..: %.2f\n", tran->conta.saldo);
+
+    return;
+}
+int busca_conta(int agencia, int numero){
+    FILE *f_conta = fopen (ARQ_CONTAS, "rb");
+    BANC temporario;
+    int i=0;
+
+    while (!feof(f_conta)){
+        ++i;
+        fread (&temporario, sizeof(BANC), 1, f_conta);
+        if ((temporario.agencia == agencia) && (temporario.numero == numero)) return i;
+    }
+
+    return 0;
+}
+void limpa_tela (){
+    #ifdef __linux__
+        system("clear"); //Linux
+    #elif _WIN32
+        system("cls");  //Windows
+    #endif
+
+    return;
+}
